@@ -17,7 +17,9 @@
 #include "internal.hpp"
 #include "fanuc_adapter.hpp"
 #include "minIni.h"
-#include <excpt.h>
+//  #include <excpt.h>
+#include <string>
+#include <unistd.h> 
 
 FanucAdapter::FanucAdapter(int aPort)
   : Adapter(aPort), mAvail("avail"), mMessage("message"), mPartCount("part_count"),
@@ -112,11 +114,11 @@ void FanucAdapter::innerGatherDeviceData()
 
 void FanucAdapter::gatherDeviceData()
 {
-  __try {
+  try {
     innerGatherDeviceData();
   }
 
-  __except(EXCEPTION_EXECUTE_HANDLER) {
+  catch(...) {
       gLogger->error("Unhandled structured exception occurred during gathering device data, disconnecting.");
       disconnect();
   }
@@ -147,7 +149,7 @@ void FanucAdapter::configMacrosAndPMC(const char *aIniFile)
 
   char dnc[8];
   ini_gets("focus", "dnc", "yes", dnc, 8, aIniFile);
-  mAllowDNC = _strnicmp(dnc, "no", 2) != 0;
+  mAllowDNC = strncasecmp(dnc, "no", 2) != 0;
   
   if (!mAllowDNC)
     printf("Disabling retrieval of program header\n");
@@ -190,7 +192,7 @@ void FanucAdapter::configMacrosAndPMC(const char *aIniFile)
       mMacroPath[i] = new MacroPathPosition(name, x, y, z);
       addDatum(*mMacroPath[i]);
 
-      printf("Adding path macro '%s' at location %d %d %d\n", name, x, y, z);
+      printf("Adding path macro '%s' at location %ld %ld %ld\n", name, x, y, z);
 
       if (x > mMacroMax) mMacroMax = x;
       if (x < mMacroMin) mMacroMin = x;
@@ -209,7 +211,7 @@ void FanucAdapter::configMacrosAndPMC(const char *aIniFile)
       mMacroSample[i] = new MacroSample(name, v);
       addDatum(*mMacroSample[i]);
 
-      printf("Adding sample macro '%s' at location %d\n", name, v);
+      printf("Adding sample macro '%s' at location %ld\n", name, v);
       
       if (v > mMacroMax) mMacroMax = v;
       if (v < mMacroMin) mMacroMin = v;
@@ -229,7 +231,7 @@ void FanucAdapter::configMacrosAndPMC(const char *aIniFile)
 
     addDatum(*mPMCVariable[idx]);
 
-    printf("Adding pmc '%s' at location %d\n", name, v);
+    printf("Adding pmc '%s' at location %ld\n", name, v);
   }
   mPMCCount = idx;
 }
@@ -290,7 +292,7 @@ void FanucAdapter::connect()
   {
     mConnected = false;
     unavailable();
-    Sleep(5000);
+    sleep(5);
   }  
 }
 
@@ -397,7 +399,7 @@ void FanucAdapter::getMessages()
   if (ret == EW_OK && messages->datano != -1)
   {
     char buf[32];
-    sprintf(buf, "%04", messages->datano);
+    snprintf(buf, sizeof(buf), "%04d", messages->datano);
     mMessage.setValue(messages->data, buf);
   }
 }
