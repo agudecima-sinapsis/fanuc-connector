@@ -33,8 +33,8 @@ adapter: $(OBJECTS) libfwlib32.so
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o adapter $(OBJECTS) $(LIBS)
 
 # Create symlink for library if it doesn't exist
-libfwlib32.so: libfwlib32-linux-x86.so.1.0.5
-	ln -sf libfwlib32-linux-x86.so.1.0.5 libfwlib32.so
+libfwlib32.so: libfwlib32-linux-x64.so.1.0.5
+	ln -sf libfwlib32-linux-x64.so.1.0.5 libfwlib32.so
 
 # C++ source files
 %.o: %.cpp
