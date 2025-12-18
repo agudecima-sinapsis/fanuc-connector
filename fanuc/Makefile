@@ -1,10 +1,10 @@
-# Use 32-bit ARM cross-compiler
-CC = arm-linux-gnueabihf-gcc
-CXX = arm-linux-gnueabihf-g++
+# Use native compilers for Debian (x86/x86_64)
+CC = gcc
+CXX = g++
 
 CXXFLAGS = -g -I../src -I../minIni_07 -I. -fPIC
 CFLAGS = -g -I../src -I../minIni_07 -I. -fPIC
-LDFLAGS = -L.
+LDFLAGS = -L. -Wl,-rpath,.
 LIBS = -lfwlib32 -lm -lpthread
 
 vpath %.hpp ../src
@@ -29,8 +29,12 @@ OBJECTS = $(FANUC_SOURCES:.cpp=.o) $(SRC_SOURCES:.cpp=.o) $(MININI_SOURCES:.c=.o
 
 all: adapter
 
-adapter: $(OBJECTS)
+adapter: $(OBJECTS) libfwlib32.so
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o adapter $(OBJECTS) $(LIBS)
+
+# Create symlink for library if it doesn't exist
+libfwlib32.so: libfwlib32-linux-x86.so.1.0.5
+	ln -sf libfwlib32-linux-x86.so.1.0.5 libfwlib32.so
 
 # C++ source files
 %.o: %.cpp
@@ -86,6 +90,6 @@ minIni.o: ../minIni_07/minIni.c ../minIni_07/minIni.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJECTS) adapter
+	rm -f $(OBJECTS) adapter libfwlib32.so
 
 .PHONY: all clean
