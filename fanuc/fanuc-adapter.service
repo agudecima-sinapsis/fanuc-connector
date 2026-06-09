@@ -1,0 +1,22 @@
+[Unit]
+Description=MTConnect Fanuc Adapter
+Documentation=file://@FANUC_DIR@/adapter.ini
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@FANUC_DIR@
+ExecStartPre=/bin/touch @FANUC_DIR@/fwlibeth.log
+ExecStart=@FANUC_DIR@/adapter @FANUC_DIR@/adapter.ini
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+
+# Logs: journalctl -u fanuc-adapter -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fanuc-adapter
+
+[Install]
+WantedBy=multi-user.target
