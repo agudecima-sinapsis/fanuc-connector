@@ -458,8 +458,22 @@ bool FanucPath::getAxisData(unsigned short aFlibhndl)
     getHeader(aFlibhndl, dyn.prgnum);
 
   mProgramNum = dyn.prgnum;
-  sprintf(buf, "%d.%d", dyn.prgmnum, dyn.prgnum);
-  mProgramName.setValue(buf);
+
+  // Prefer the actual program name from the CNC (string).
+  // Fall back to "<mainProg>.<runningProg>" if the function isn't supported.
+  ODBEXEPRG exeprg;
+  memset(&exeprg, 0, sizeof(exeprg));
+  short prgRet = cnc_exeprgname(aFlibhndl, &exeprg);
+  if (prgRet == EW_OK && exeprg.name[0] != '\0')
+  {
+    exeprg.name[sizeof(exeprg.name) - 1] = '\0';
+    mProgramName.setValue(exeprg.name);
+  }
+  else
+  {
+    snprintf(buf, sizeof(buf), "%d.%d", dyn.prgmnum, dyn.prgnum);
+    mProgramName.setValue(buf);
+  }
 
   // Update all the axes
   vector<FanucAxis*>::iterator axis;
