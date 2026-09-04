@@ -1,7 +1,7 @@
 """SINUMERIK 840D sl / LIS2 family pack (DB11 / DB21).
 
-Bit map copied from scritps/ingests/dmgmori/s7_dmgmori.py. Do not import that
-file — MQTT ingest would leak into the adapter process.
+Bit map copied from the retired S7 ingest. Do not import ingest
+scripts — MQTT would leak into the adapter process.
 
 Signal addresses: SINUMERIK 840D sl Parameter Manual "Lists (Book 2)",
 6FC5397-3CP40-5BA3, sections 4.7.2 (DB11) and 4.11 (DB21-DB30).
