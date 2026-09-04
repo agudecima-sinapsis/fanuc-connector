@@ -1,12 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
-# Put the cppagent binary at AGENT_BIN (default /usr/local/bin/agent).
-# Idempotent: exits 0 if that path is already executable.
-# Does NOT enable cppagent's own systemd unit (it would steal port 5000).
+# Optional helper: build MTConnect cppagent and copy the binary to AGENT_BIN
+# (default /usr/local/bin/agent).
 #
-# First run on a Pi compiles C++ and can take 30–90+ minutes. Needs ~3GB
-# RAM+swap; override parallelism with CPPAGENT_JOBS (default 1).
+# NOT used by Siemens. Siemens serves SHDR pipes from Python on :7878;
+# Okuma-style ingest maps those keys. Keep this script for a later HTTP
+# /current XML agent (Haas-like) or a Fanuc-style stack.
+#
+# First run compiles C++ (30–90+ min on a Pi). Needs ~3GB RAM+swap.
+# Idempotent: exits 0 if AGENT_BIN is already executable.
+# Does NOT enable cppagent's own systemd unit (it would steal port 5000).
 
 AGENT_BIN="${AGENT_BIN:-/usr/local/bin/agent}"
 SRC_DIR="${CPPAGENT_SRC:-/opt/cppagent}"

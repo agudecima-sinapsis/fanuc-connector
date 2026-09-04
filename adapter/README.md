@@ -1,8 +1,14 @@
 # Adapters
 
 This tree is here so a Pi can `git clone` this public repo and install the
-Siemens agent without pulling `project-factory-flow-machines`. It is not
+Siemens SHDR adapter without pulling `project-factory-flow-machines`. It is not
 coupled to the Fanuc FOCAS adapter (`fanuc/`).
+
+The Python process speaks S7 to the CNC and **serves SHDR pipes on :7878**.
+Ingest (same pattern as Okuma/Mitsubishi) connects to that port and maps keys.
+cppagent is not part of this path. The compile helper lives in
+`adapter/cppagent/install-cppagent.sh` if you need HTTP `/current` later;
+Siemens install does not run it.
 
 On the Pi:
 
@@ -11,9 +17,6 @@ cd adapter/siemens
 cp adapter.env.example adapter.env   # set IP_MACHINE
 sudo ./install-systemd.sh
 ```
-
-The first run calls `install-cppagent.sh` if `/usr/local/bin/agent` is missing.
-That compiles cppagent (30–90+ min on a Pi). Later runs skip the compile.
 
 | Brand / control | Location |
 |-----------------|----------|
