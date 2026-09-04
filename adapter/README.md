@@ -12,7 +12,8 @@ cp adapter.env.example adapter.env   # set IP_MACHINE
 sudo ./install-systemd.sh
 ```
 
-cppagent still needs to be on the box (`AGENT_BIN`, default `/usr/local/bin/agent`).
+The first run calls `install-cppagent.sh` if `/usr/local/bin/agent` is missing.
+That compiles cppagent (30–90+ min on a Pi). Later runs skip the compile.
 
 | Brand / control | Location |
 |-----------------|----------|
