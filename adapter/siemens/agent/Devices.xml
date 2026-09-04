@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MTConnectDevices xmlns:m="urn:mtconnect.org:MTConnectDevices:1.3" xmlns="urn:mtconnect.org:MTConnectDevices:1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:mtconnect.org:MTConnectDevices:1.3 http://www.mtconnect.org/schemas/MTConnectDevices_1.3.xsd">
+  <Header creationTime="2026-09-01T00:00:00Z" sender="localhost" instanceId="1" bufferSize="131072" version="1.3"/>
+  <Devices>
+    <Device id="siemens" name="siemens" uuid="siemens-840d-sl">
+      <Description manufacturer="Siemens">SINUMERIK 840D sl MTConnect adapter</Description>
+      <DataItems>
+        <DataItem category="EVENT" id="avail" name="avail" type="AVAILABILITY"/>
+      </DataItems>
+      <Components>
+        <Controller id="controller" name="Controller">
+          <DataItems>
+            <!-- SHDR key `alarm`; HTTP type SYSTEM. Boolean Condition, no code/text. -->
+            <DataItem category="CONDITION" id="alarm" name="alarm" type="SYSTEM"/>
+          </DataItems>
+          <Components>
+            <Path id="path" name="path">
+              <DataItems>
+                <!-- name attributes match SHDR keys so cppagent binds 1:1. -->
+                <DataItem category="EVENT" id="program" name="program" type="PROGRAM"/>
+                <DataItem category="EVENT" id="mode" name="mode" type="CONTROLLER_MODE"/>
+                <DataItem category="EVENT" id="execution" name="execution" type="EXECUTION"/>
+              </DataItems>
+            </Path>
+          </Components>
+        </Controller>
+      </Components>
+    </Device>
+  </Devices>
+</MTConnectDevices>

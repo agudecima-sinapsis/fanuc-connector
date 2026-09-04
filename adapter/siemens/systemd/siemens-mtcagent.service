@@ -1,0 +1,19 @@
+[Unit]
+Description=MTConnect Siemens Agent
+Documentation=file://@ADAPTER_DIR@/agent/README.md
+After=network-online.target siemens-adapter.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@ADAPTER_DIR@/agent
+ExecStart=/usr/local/bin/agent run @ADAPTER_DIR@/agent/agent.cfg
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=siemens-mtcagent
+
+[Install]
+WantedBy=multi-user.target

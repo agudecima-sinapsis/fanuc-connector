@@ -1,0 +1,20 @@
+[Unit]
+Description=MTConnect Siemens S7 Adapter
+Documentation=file://@ADAPTER_DIR@/adapter.env.example
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@ADAPTER_DIR@
+EnvironmentFile=@ADAPTER_DIR@/adapter.env
+ExecStart=@ADAPTER_DIR@/venv/bin/python @ADAPTER_DIR@/adapter.py
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=siemens-adapter
+
+[Install]
+WantedBy=multi-user.target
