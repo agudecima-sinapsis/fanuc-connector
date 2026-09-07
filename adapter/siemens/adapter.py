@@ -98,6 +98,12 @@ def close_plc(plc):
         pass
 
 
+def split_pack_sample(fresh):
+    """Pop CNC DATE_AND_TIME so it timestamps the SHDR line and is not change-gated."""
+    sample = dict(fresh)
+    return sample, sample.pop("timestamp", None)
+
+
 def run_loop(
     *,
     pack,
@@ -131,8 +137,9 @@ def run_loop(
                 plc = None
                 sleep(reconnect_s)
                 continue
-            shdr.emit(now(), {"avail": "AVAILABLE", **fresh})
-            last = dict(fresh)
+            comparable, plc_ts = split_pack_sample(fresh)
+            shdr.emit(plc_ts or now(), {"avail": "AVAILABLE", **comparable})
+            last = dict(comparable)
             sleep(poll_interval)
             continue
 
@@ -147,9 +154,10 @@ def run_loop(
             sleep(reconnect_s)
             continue
 
-        if fresh != last:
-            shdr.emit(now(), {"avail": "AVAILABLE", **fresh})
-            last = dict(fresh)
+        comparable, plc_ts = split_pack_sample(fresh)
+        if comparable != last:
+            shdr.emit(plc_ts or now(), {"avail": "AVAILABLE", **comparable})
+            last = dict(comparable)
         sleep(poll_interval)
 
 

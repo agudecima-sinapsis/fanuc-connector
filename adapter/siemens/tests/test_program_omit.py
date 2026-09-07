@@ -4,12 +4,14 @@ import time
 
 import pytest
 
-from adapter import config_from_env, load_pack, parse_program_db, run_loop
+from adapter import config_from_env, load_pack, parse_program_db, run_loop, split_pack_sample
 from families import PACKS
 from shdr import ShdrServer
 
-from tests.test_840d_sl import FakePlc, _chan
+from datetime import datetime, timezone
 from importlib import import_module
+
+from tests.test_840d_sl import FakePlc, build_window, _chan
 
 sl = import_module("families.840d_sl")
 
@@ -27,7 +29,7 @@ def test_program_db_invalid_exits():
         parse_program_db("0")
 
 
-def test_config_omits_program_and_never_defaults_db99():
+def test_config_never_defaults_db99_and_pack_reads_db90():
     cfg, pack = config_from_env(
         {
             "SIEMENS_FAMILY": "840d_sl",
@@ -38,10 +40,11 @@ def test_config_omits_program_and_never_defaults_db99():
     assert pack is PACKS["840d_sl"]
     assert cfg["PROGRAM_DB"] is None
     assert cfg["PROGRAM_DB"] != 99
-    plc = FakePlc(mode=1 << sl.MODE_AUTO_BIT, chan=_chan(dbb35=1 << sl.PROG_RUNNING_BIT))
+    plc = FakePlc(window=build_window(program="MAIN.MPF"), chan=_chan())
     sample = pack(plc, cfg)
-    assert "program" not in sample
+    assert sample["program"] == "MAIN.MPF"
     assert all(db != 99 for db, _start, _size in plc.reads)
+    assert (90, 376, 206) in plc.reads
 
 
 def test_unknown_family_refuses_before_shdr():
@@ -57,15 +60,37 @@ def test_default_family_is_840d_sl():
     assert pack is PACKS["840d_sl"]
 
 
-def test_tcp_fake_pack_omits_program_key():
+def test_split_pack_sample_pops_timestamp():
+    sample, ts = split_pack_sample(
+        {"mode": "AUTOMATIC", "timestamp": "2026-09-03T20:15:04.561Z"}
+    )
+    assert ts == "2026-09-03T20:15:04.561Z"
+    assert "timestamp" not in sample
+    assert sample["mode"] == "AUTOMATIC"
+
+
+def test_tcp_fake_pack_includes_program_uses_plc_timestamp():
     server = ShdrServer(host="127.0.0.1", port=0)
     server.start()
     running = {"on": True}
-    plc = FakePlc(mode=1 << sl.MODE_AUTO_BIT, chan=_chan(dbb35=1 << sl.PROG_RUNNING_BIT))
+    plc = FakePlc(
+        window=build_window(
+            mode="AUTO",
+            status="RUNNING",
+            program="O99",
+            dt=datetime(2026, 9, 3, 20, 15, 4, 561000, tzinfo=timezone.utc),
+        ),
+        chan=_chan(),
+    )
+    emitted = []
 
-    def fake_pack(_plc, cfg):
-        assert cfg["PROGRAM_DB"] is None
-        sample = sl.read_840d_sl(_plc, cfg)
+    class Capture:
+        def emit(self, timestamp, sample):
+            emitted.append((timestamp, sample))
+            server.emit(timestamp, sample)
+
+    def fake_pack(_plc, _cfg):
+        sample = sl.read_840d_sl(_plc, _cfg)
         running["on"] = False
         return sample
 
@@ -74,13 +99,13 @@ def test_tcp_fake_pack_omits_program_key():
             target=run_loop,
             kwargs={
                 "pack": fake_pack,
-                "cfg": {"PROGRAM_DB": None},
-                "shdr": server,
+                "cfg": {},
+                "shdr": Capture(),
                 "connect": lambda: plc,
                 "close": lambda _plc: None,
                 "running": lambda: running["on"],
                 "sleep": lambda _s: None,
-                "now": lambda: "2026-01-01T00:00:00.000Z",
+                "now": lambda: "DEVICE-NOW",
                 "poll_interval": 0,
                 "reconnect_s": 0,
             },
@@ -100,12 +125,56 @@ def test_tcp_fake_pack_omits_program_key():
         assert "avail|AVAILABLE" in text
         assert "mode|AUTOMATIC" in text
         assert "execution|ACTIVE" in text
-        assert "program" not in text
+        assert "program|O99" in text
+        assert "timestamp" not in text
+        assert emitted
+        assert emitted[0][0] == "2026-09-03T20:15:04.561Z"
         with socket.create_connection(("127.0.0.1", server.port), timeout=2) as conn:
             conn.settimeout(2)
             replay = conn.recv(4096).decode("utf-8")
-            assert "program" not in replay
+            assert "program|O99" in replay
             assert "mode|AUTOMATIC" in replay
     finally:
         running["on"] = False
         server.stop()
+
+
+def test_timestamp_only_change_does_not_reemit():
+    class Capture:
+        def __init__(self):
+            self.lines = []
+
+        def emit(self, timestamp, sample):
+            self.lines.append((timestamp, dict(sample)))
+
+    samples = [
+        {"mode": "AUTOMATIC", "execution": "ACTIVE", "program": "A", "alarm": False, "timestamp": "T1"},
+        {"mode": "AUTOMATIC", "execution": "ACTIVE", "program": "A", "alarm": False, "timestamp": "T2"},
+        {"mode": "MANUAL", "execution": "READY", "program": "A", "alarm": False, "timestamp": "T3"},
+    ]
+    idx = {"i": 0}
+    running = {"on": True}
+
+    def pack(_plc, _cfg):
+        sample = samples[idx["i"]]
+        idx["i"] += 1
+        if idx["i"] >= len(samples):
+            running["on"] = False
+        return sample
+
+    shdr = Capture()
+    run_loop(
+        pack=pack,
+        cfg={},
+        shdr=shdr,
+        connect=lambda: object(),
+        close=lambda _plc: None,
+        running=lambda: running["on"] and idx["i"] <= len(samples),
+        sleep=lambda _s: None,
+        now=lambda: "NOW",
+        poll_interval=0,
+        reconnect_s=0,
+    )
+    modes = [sample["mode"] for _ts, sample in shdr.lines]
+    assert modes.count("AUTOMATIC") == 1
+    assert "MANUAL" in modes
