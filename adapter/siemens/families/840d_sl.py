@@ -16,6 +16,7 @@ program STRING, not the DT size. DATE_AND_TIME is always 8 bytes.
 """
 
 from datetime import datetime, timezone
+from unicodedata import combining, normalize as u_normalize
 
 BUILDER_DB = 90
 WINDOW_START = 376
@@ -48,6 +49,10 @@ MODE_MAP = {
     "REFPOINT": "MANUAL",
     "TEACHIN": "MANUAL",
     "TEACH IN": "MANUAL",
+    "AUTOMATIC MODE": "AUTOMATIC",
+    "AUTO MODE": "AUTOMATIC",
+    "MDI AUTO": "MANUAL_DATA_INPUT",
+    "MDIAUTO": "MANUAL_DATA_INPUT",
 }
 
 EXECUTION_MAP = {
@@ -90,12 +95,18 @@ EXECUTION_MAP = {
 }
 
 
+_last_logged_raw = None
+
+
 def bit(byte_value, index):
     return bool((byte_value >> index) & 1)
 
 
 def _normalize(text):
-    return " ".join((text or "").replace("_", " ").split()).upper()
+    """Uppercase, collapse space, strip accents so Automático → AUTOMATICO."""
+    folded = u_normalize("NFKD", text or "")
+    folded = "".join(ch for ch in folded if not combining(ch))
+    return " ".join(folded.replace("_", " ").split()).upper()
 
 
 def decode_s7_string(data, capacity):
@@ -140,7 +151,11 @@ def map_mode(raw):
     key = _normalize(raw)
     if not key:
         return "UNAVAILABLE"
-    return MODE_MAP.get(key, "UNAVAILABLE")
+    mapped = MODE_MAP.get(key)
+    if mapped:
+        return mapped
+    # Unknown PLC text: keep it visible in SHDR so we can extend the table.
+    return raw.strip()
 
 
 def map_execution(raw):
@@ -166,14 +181,26 @@ def read_840d_sl(plc, cfg):
     del cfg  # pack owns addresses; env PROGRAM_DB is unused
     window = plc.db_read(BUILDER_DB, WINDOW_START, WINDOW_LEN)
     chan = plc.db_read(CHAN_DB, CHAN_START, CHAN_LEN)
+    mode_slice = window[MODE_REL : MODE_REL + MODE_CAP + 2]
+    status_slice = window[STATUS_REL : STATUS_REL + STATUS_CAP + 2]
+    raw_mode = decode_s7_string(mode_slice, MODE_CAP)
+    raw_status = decode_s7_string(status_slice, STATUS_CAP)
+    raw_program = decode_s7_string(
+        window[PROGRAM_REL : PROGRAM_REL + PROGRAM_CAP + 2], PROGRAM_CAP
+    )
+    global _last_logged_raw
+    logged = (raw_mode, raw_status, raw_program)
+    if logged != _last_logged_raw:
+        print(
+            f"DB90 raw mode={raw_mode!r} bytes={mode_slice.hex()} "
+            f"status={raw_status!r} program={raw_program!r}",
+            flush=True,
+        )
+        _last_logged_raw = logged
     sample = {
-        "mode": map_mode(decode_s7_string(window[MODE_REL : MODE_REL + MODE_CAP + 2], MODE_CAP)),
-        "execution": map_execution(
-            decode_s7_string(window[STATUS_REL : STATUS_REL + STATUS_CAP + 2], STATUS_CAP)
-        ),
-        "program": decode_s7_string(
-            window[PROGRAM_REL : PROGRAM_REL + PROGRAM_CAP + 2], PROGRAM_CAP
-        ),
+        "mode": map_mode(raw_mode),
+        "execution": map_execution(raw_status),
+        "program": raw_program,
         "alarm": resolve_alarms(chan),
     }
     plc_ts = decode_s7_dt(window[DT_REL : DT_REL + DT_LEN])

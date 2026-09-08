@@ -97,8 +97,9 @@ def test_mdi_jog_and_empty_mode():
     assert sl.map_mode("MDI") == "MANUAL_DATA_INPUT"
     assert sl.map_mode("JOG") == "MANUAL"
     assert sl.map_mode("  auto  ") == "AUTOMATIC"
+    assert sl.map_mode("Automático") == "AUTOMATIC"
     assert sl.map_mode("") == "UNAVAILABLE"
-    assert sl.map_mode("WEIRD") == "UNAVAILABLE"
+    assert sl.map_mode("WEIRD") == "WEIRD"
 
 
 def test_execution_synonyms():
