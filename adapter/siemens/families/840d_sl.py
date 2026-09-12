@@ -109,14 +109,48 @@ def _normalize(text):
     return " ".join(folded.replace("_", " ").split()).upper()
 
 
+def _lookup(raw, table):
+    """Match a PLC string to a contract value.
+
+    Tries the full normalized text, then letters/digits only, then the first
+    token. Field SHDR showed mode|AUTO even with AUTO in MODE_MAP — leftover
+    padding/nbsp from the STRING/CHAR window would miss an exact key.
+    """
+    key = _normalize(raw)
+    if not key:
+        return None
+    if key in table:
+        return table[key]
+    compact = " ".join("".join(ch if ch.isalnum() else " " for ch in key).split())
+    if compact in table:
+        return table[compact]
+    first = compact.split()[0] if compact else ""
+    if first in table:
+        return table[first]
+    return None
+
+
 def decode_s7_string(data, capacity):
-    """Decode STRING[capacity] or fall back to CHAR[capacity]."""
+    """Decode S7 STRING[capacity], length-prefixed CHAR, or a bare CHAR array.
+
+    Full STRING is max + len + chars. Some builder DBs omit max, so byte 0 is
+    the current length (field SHDR looked like mode|AUTO in a terminal while
+    MQTT showed \\u0004AUTO — \\x04 is len('AUTO') and is invisible on the tty).
+    """
     if not data:
         return ""
     if len(data) >= 2 and data[0] == capacity and data[1] <= capacity:
         n = min(data[1], len(data) - 2)
-        return data[2 : 2 + n].decode("latin-1").rstrip("\x00 ").strip()
-    return data[:capacity].decode("latin-1").rstrip("\x00 ").strip()
+        raw = data[2 : 2 + n]
+    elif data[0] < 32 and data[0] <= capacity:
+        # Length without max. Bound at 31 so a program path starting with '/'
+        # (47) is not treated as a length prefix when capacity is 160.
+        n = min(data[0], max(0, len(data) - 1))
+        raw = data[1 : 1 + n]
+    else:
+        raw = data[:capacity]
+    text = raw.decode("latin-1").rstrip("\x00 ").strip()
+    return "".join(ch for ch in text if ch.isprintable()).strip()
 
 
 def _bcd(byte):
@@ -148,21 +182,21 @@ def decode_s7_dt(data):
 
 
 def map_mode(raw):
-    key = _normalize(raw)
-    if not key:
-        return "UNAVAILABLE"
-    mapped = MODE_MAP.get(key)
+    mapped = _lookup(raw, MODE_MAP)
     if mapped:
         return mapped
-    # Unknown PLC text: keep it visible in SHDR so we can extend the table.
+    if not _normalize(raw):
+        return "UNAVAILABLE"
     return raw.strip()
 
 
 def map_execution(raw):
-    key = _normalize(raw)
-    if not key:
+    mapped = _lookup(raw, EXECUTION_MAP)
+    if mapped:
+        return mapped
+    if not _normalize(raw):
         return "STOPPED"
-    return EXECUTION_MAP.get(key, raw.strip())
+    return raw.strip()
 
 
 def resolve_alarms(chan):

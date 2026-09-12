@@ -97,6 +97,8 @@ def test_mdi_jog_and_empty_mode():
     assert sl.map_mode("MDI") == "MANUAL_DATA_INPUT"
     assert sl.map_mode("JOG") == "MANUAL"
     assert sl.map_mode("  auto  ") == "AUTOMATIC"
+    assert sl.map_mode("AUTO") == "AUTOMATIC"
+    assert sl.map_mode("AUTO\xa0") == "AUTOMATIC"
     assert sl.map_mode("Automático") == "AUTOMATIC"
     assert sl.map_mode("") == "UNAVAILABLE"
     assert sl.map_mode("WEIRD") == "WEIRD"
@@ -108,6 +110,7 @@ def test_execution_synonyms():
     assert sl.map_execution("M30") == "PROGRAM_COMPLETED"
     assert sl.map_execution("M00") == "PROGRAM_OPTIONAL_STOP"
     assert sl.map_execution("STOPPED") == "PROGRAM_STOPPED"
+    assert sl.map_execution("STOPPED\xa0") == "PROGRAM_STOPPED"
     assert sl.map_execution("") == "STOPPED"
     assert sl.map_execution("Ciclo raro") == "Ciclo raro"
 
@@ -120,6 +123,19 @@ def test_char_array_fallback_when_not_s7_string():
 def test_s7_string_uses_length_byte():
     payload = bytes([15, 4]) + b"AUTO" + bytes(11)
     assert sl.decode_s7_string(payload, 15) == "AUTO"
+
+
+def test_length_prefixed_without_max_byte():
+    """Builder DB: byte0=len, then chars. MQTT showed \\u0004AUTO / \\u0005READY."""
+    assert sl.decode_s7_string(bytes([4]) + b"AUTO" + bytes(10), 15) == "AUTO"
+    assert sl.decode_s7_string(bytes([5]) + b"READY" + bytes(9), 15) == "READY"
+    assert sl.map_mode("\x04AUTO") == "AUTOMATIC"
+    assert sl.map_execution("\x05READY") == "READY"
+
+
+def test_program_path_is_not_eaten_as_length_prefix():
+    path = b"/_N_EXT_DIR/_N_EXTMOD_DIR/_N_CHAN1_DIR/_N_RENAULT_KWID__MPF"
+    assert sl.decode_s7_string(path + bytes(20), 160) == path.decode("latin-1")
 
 
 def test_invalid_dt_omits_timestamp():
